@@ -1,0 +1,21 @@
+[project]
+name = "local-rag"
+version = "1.0.0"
+description = "Local document RAG — offline semantic search with extractive answers"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120

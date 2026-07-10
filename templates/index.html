@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG — Document Search</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --orange: #d29922;
+            --radius: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px 20px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        header h1 span { color: var(--accent); }
+
+        .header-actions { display: flex; gap: 8px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: var(--muted);
+            border-bottom: 2px solid transparent;
+            transition: all .2s;
+            font-size: 0.95rem;
+            user-select: none;
+        }
+
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all .15s;
+        }
+
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+        .btn.primary:hover { background: var(--accent-hover); }
+        .btn.danger { border-color: var(--red); color: var(--red); }
+        .btn.danger:hover { background: var(--red); color: #fff; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn.small { padding: 4px 10px; font-size: 0.8rem; }
+
+        /* Query section */
+        .query-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .query-box input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .query-box input:focus { border-color: var(--accent); }
+        .query-box input::placeholder { color: var(--muted); }
+
+        /* Results */
+        .results-area { min-height: 100px; }
+
+        .result-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .result-section h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: var(--muted);
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .answer-text {
+            font-size: 1rem;
+            line-height: 1.8;
+        }
+
+        .digest-source {
+            font-weight: 600;
+            color: var(--accent);
+            margin-top: 12px;
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+        }
+
+        .digest-source:first-child { margin-top: 0; }
+
+        .digest-point {
+            padding-left: 16px;
+            position: relative;
+            color: var(--text);
+            margin: 4px 0;
+            font-size: 0.9rem;
+        }
+
+        .digest-point::before {
+            content: "•";
+            position: absolute;
+            left: 4px;
+            color: var(--accent);
+        }
+
+        .source-item {
+            font-size: 0.875rem;
+            color: var(--muted);
+            padding: 2px 0;
+        }
+
+        .passage {
+            border-left: 3px solid var(--border);
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .passage-meta {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        /* Upload */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .2s;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(88, 166, 255, 0.05);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-zone p { color: var(--muted); margin-top: 8px; font-size: 0.875rem; }
+        .upload-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+
+        /* Documents table */
+        .doc-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .doc-table th, .doc-table td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .doc-table th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; }
+        .doc-table tr:hover { background: rgba(88, 166, 255, 0.03); }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--accent);
+        }
+
+        /* Status messages */
+        .status {
+            padding: 10px 16px;
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .status.success { display: block; background: rgba(63, 185, 80, 0.1); border: 1px solid var(--green); color: var(--green); }
+        .status.error { display: block; background: rgba(248, 81, 73, 0.1); border: 1px solid var(--red); color: var(--red); }
+        .status.info { display: block; background: rgba(88, 166, 255, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+
+        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+        @media (max-width: 640px) {
+            .query-box { flex-direction: column; }
+            header { flex-direction: column; gap: 12px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 <span>RAG</span> Document Search</h1>
+            <div class="header-actions">
+                <span id="indexStatus" class="badge" style="margin-right:8px"></span>
+                <button class="btn small" onclick="rebuildIndex()" id="rebuildBtn">⟳ Rebuild Index</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="query">🔍 Ask</div>
+            <div class="tab" data-tab="documents">📁 Documents</div>
+            <div class="tab" data-tab="upload">⬆ Upload</div>
+        </div>
+
+        <!-- Query Tab -->
+        <div class="tab-panel active" id="panel-query">
+            <div class="query-box">
+                <input type="text" id="queryInput" placeholder="Ask a question about your documents..."
+                    autofocus autocomplete="off" />
+                <button class="btn primary" id="queryBtn" onclick="runQuery()">Search</button>
+            </div>
+            <div id="queryStatus" class="status"></div>
+            <div class="results-area" id="resultsArea">
+                <div class="empty-state">
+                    <div class="icon">🔍</div>
+                    <p>Type a question and press Search to get answers from your documents.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documents Tab -->
+        <div class="tab-panel" id="panel-documents">
+            <div id="docStatus" class="status"></div>
+            <div id="docList"></div>
+        </div>
+
+        <!-- Upload Tab -->
+        <div class="tab-panel" id="panel-upload">
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" id="fileInput" multiple
+                    accept=".pdf,.txt,.md,.docx,.html,.htm" />
+                <div class="icon">📁</div>
+                <p><strong>Drop files here</strong> or click to browse</p>
+                <p>Supports: PDF, TXT, Markdown, DOCX, HTML (max 100 MB)</p>
+            </div>
+            <div id="uploadStatus" class="status"></div>
+            <button class="btn primary" onclick="uploadFiles()" id="uploadBtn" disabled>
+                Upload Selected Files
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Index status polling ---
+        let indexReady = false;
+        async function checkIndexStatus() {
+            try {
+                const resp = await fetch('/status');
+                const data = await resp.json();
+                const el = document.getElementById('indexStatus');
+                if (data.building) {
+                    el.innerHTML = '<span class="spinner"></span> Building index...';
+                    el.style.background = 'rgba(210, 153, 34, 0.15)';
+                    el.style.color = 'var(--orange)';
+                    indexReady = false;
+                    setTimeout(checkIndexStatus, 3000);
+                } else if (data.ready) {
+                    el.textContent = `✓ ${data.chunks} chunks indexed`;
+                    el.style.background = 'rgba(63, 185, 80, 0.15)';
+                    el.style.color = 'var(--green)';
+                    indexReady = true;
+                } else if (data.error) {
+                    el.textContent = '✗ Build failed';
+                    el.style.background = 'rgba(248, 81, 73, 0.15)';
+                    el.style.color = 'var(--red)';
+                    indexReady = false;
+                } else {
+                    el.textContent = 'No documents';
+                    el.style.background = 'rgba(139, 148, 158, 0.15)';
+                    el.style.color = 'var(--muted)';
+                    indexReady = false;
+                }
+            } catch (e) { /* server not ready */ }
+        }
+        checkIndexStatus();
+
+        // --- Tab switching ---
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+                if (tab.dataset.tab === 'documents') loadDocuments();
+            });
+        });
+
+        // --- Enter key for query ---
+        document.getElementById('queryInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') runQuery();
+        });
+
+        // --- File input ---
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        fileInput.addEventListener('change', () => {
+            uploadBtn.disabled = fileInput.files.length === 0;
+            if (fileInput.files.length > 0) {
+                uploadBtn.textContent = `Upload ${fileInput.files.length} file(s)`;
+            }
+        });
+
+        // Drag & drop
+        const uploadZone = document.getElementById('uploadZone');
+        ['dragenter', 'dragover'].forEach(evt =>
+            uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.add('drag-over'); }));
+        ['dragleave', 'drop'].forEach(evt =>
+            uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); }));
+        uploadZone.addEventListener('drop', e => {
+            fileInput.files = e.dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change'));
+        });
+
+        // --- Query ---
+        async function runQuery() {
+            const input = document.getElementById('queryInput');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const btn = document.getElementById('queryBtn');
+            const status = document.getElementById('queryStatus');
+            const area = document.getElementById('resultsArea');
+
+            btn.disabled = true;
+            btn.textContent = 'Searching...';
+            status.className = 'status info';
+            status.innerHTML = '<span class="spinner"></span> Searching documents...';
+
+            try {
+                const resp = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, top_k: 5 }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    status.className = 'status error';
+                    status.textContent = data.error || 'Query failed';
+                    return;
+                }
+                status.className = 'status';  // hide
+                renderResults(data);
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Network error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Search';
+            }
+        }
+
+        function renderResults(data) {
+            const area = document.getElementById('resultsArea');
+            let html = '';
+
+            // Answer
+            if (data.answer) {
+                html += `<div class="result-section">
+                    <h3>Answer</h3>
+                    <div class="answer-text">${escapeHtml(data.answer)}</div>
+                </div>`;
+            }
+
+            // Digest
+            if (data.digest && data.digest.length) {
+                html += `<div class="result-section"><h3>Digest / Summary</h3>`;
+                for (const entry of data.digest) {
+                    const pages = entry.pages && entry.pages.length
+                        ? 'p.' + entry.pages.join(', ')
+                        : '';
+                    html += `<div class="digest-source">📄 ${escapeHtml(entry.source)} ${pages ? '— ' + pages : ''}</div>`;
+                    for (const point of (entry.key_points || [])) {
+                        html += `<div class="digest-point">${escapeHtml(point)}</div>`;
+                    }
+                }
+                html += `</div>`;
+            }
+
+            // Sources
+            if (data.sources) {
+                html += `<div class="result-section"><h3>Sources</h3>`;
+                for (const line of data.sources.split('\n')) {
+                    if (line.trim()) {
+                        html += `<div class="source-item">${escapeHtml(line)}</div>`;
+                    }
+                }
+                html += `</div>`;
+            }
+
+            // Passages
+            if (data.passages && data.passages.length) {
+                html += `<div class="result-section"><h3>Retrieved Passages</h3>`;
+                for (const p of data.passages) {
+                    html += `<div class="passage">
+                        <div class="passage-meta">[${p.rank}] ${escapeHtml(String(p.source))} — Page ${p.page}</div>
+                        ${escapeHtml(p.content)}
+                    </div>`;
+                }
+                html += `</div>`;
+            }
+
+            area.innerHTML = html || '<div class="empty-state"><p>No results found.</p></div>';
+        }
+
+        // --- Upload ---
+        async function uploadFiles() {
+            const status = document.getElementById('uploadStatus');
+            const btn = document.getElementById('uploadBtn');
+            const files = fileInput.files;
+            if (!files.length) return;
+
+            const formData = new FormData();
+            for (const f of files) formData.append('files', f);
+
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+            status.className = 'status info';
+            status.innerHTML = '<span class="spinner"></span> Uploading files...';
+
+            try {
+                const resp = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+                let msg = '';
+                if (data.uploaded && data.uploaded.length) {
+                    msg += `✓ Uploaded: ${data.uploaded.join(', ')}`;
+                }
+                if (data.errors && data.errors.length) {
+                    msg += (msg ? '<br>' : '') + `✗ Errors: ${data.errors.join('; ')}`;
+                }
+                status.className = data.errors && data.errors.length ? 'status error' : 'status success';
+                status.innerHTML = msg || 'Upload complete.';
+                fileInput.value = '';
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Upload Selected Files';
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Upload failed: ' + err.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // --- Documents list ---
+        async function loadDocuments() {
+            const container = document.getElementById('docList');
+            container.innerHTML = '<p style="color:var(--muted)">Loading...</p>';
+            try {
+                const resp = await fetch('/documents');
+                const docs = await resp.json();
+                if (!docs.length) {
+                    container.innerHTML = `<div class="empty-state">
+                        <div class="icon">📁</div>
+                        <p>No documents yet. Go to the Upload tab to add files.</p>
+                    </div>`;
+                    return;
+                }
+                let html = `<table class="doc-table">
+                    <thead><tr><th>Name</th><th>Type</th><th>Size</th><th></th></tr></thead><tbody>`;
+                for (const d of docs) {
+                    html += `<tr>
+                        <td>${escapeHtml(d.name)}</td>
+                        <td><span class="badge">${escapeHtml(d.ext.toUpperCase())}</span></td>
+                        <td>${d.size_kb} KB</td>
+                        <td><button class="btn small danger" onclick="deleteDoc('${escapeHtml(d.name)}')">✕</button></td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<div class="status error" style="display:block">Failed to load documents</div>`;
+            }
+        }
+
+        async function deleteDoc(name) {
+            if (!confirm(`Delete "${name}"?`)) return;
+            const status = document.getElementById('docStatus');
+            try {
+                const resp = await fetch(`/delete/${encodeURIComponent(name)}`, { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok) {
+                    status.className = 'status success';
+                    status.textContent = `Deleted: ${data.deleted}`;
+                } else {
+                    status.className = 'status error';
+                    status.textContent = data.error || 'Delete failed';
+                }
+                loadDocuments();
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Delete failed: ' + err.message;
+            }
+        }
+
+        // --- Rebuild Index ---
+        async function rebuildIndex() {
+            const btn = document.getElementById('rebuildBtn');
+            btn.disabled = true;
+            btn.textContent = '⟳ Rebuilding...';
+            try {
+                const resp = await fetch('/rebuild', { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok) {
+                    alert(`Index rebuilt: ${data.chunks} chunks indexed.`);
+                } else {
+                    alert('Rebuild failed: ' + (data.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Rebuild failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⟳ Rebuild Index';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

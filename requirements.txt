@@ -1,0 +1,27 @@
+# Core
+pypdf>=3.0,<5.0
+numpy>=1.24,<3.0
+faiss-cpu>=1.7,<2.0
+
+# Embedding backends (at least one required)
+sentence-transformers>=2.2,<4.0
+fastembed>=0.2,<1.0
+
+# BM25 hybrid search
+rank-bm25>=0.2.2,<1.0
+
+# Progress bars
+tqdm>=4.60,<5.0
+
+# Optional document loaders
+python-docx>=0.8,<2.0
+beautifulsoup4>=4.12,<5.0
+
+# Sample PDF generation
+reportlab>=4.0,<5.0
+
+# Web interface
+flask>=3.0,<4.0
+
+# Testing
+pytest>=7.0,<9.0
